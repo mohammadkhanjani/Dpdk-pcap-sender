@@ -338,7 +338,7 @@ static void app_init_nics (void) {
 				           ret);
 			}
 		}
-		float numqueues = 0;
+		uint32_t numqueues = 0;
 
 		/* Init TX queues */
 		for (queue = 0; queue < APP_MAX_TX_QUEUES_PER_NIC_PORT; queue++) {
@@ -358,7 +358,7 @@ static void app_init_nics (void) {
 				           (unsigned)port,
 				           ret);
 			}
-			numqueues += 1;  // I'm expecting that float sum error will be in our benefit
+			numqueues++;
 		}
 
 		/* Start port */
@@ -369,13 +369,19 @@ static void app_init_nics (void) {
 
 		/* Limit TX queues */
 		if (limitbw > 0) {
-			for (queue = 0; queue < numqueues; queue++) {
-				printf ("***** Seting rate limit %d/%d to: %hu ****\n",
-				        port,
-				        queue,
-				        (uint16_t) (limitbw / numqueues));
+			uint32_t rate_per_queue = limitbw / numqueues;
+			printf ("***** Setting rate limit for port %u: %u Mbps total, %u Mbps per queue (%u queues) ****\n",
+			        port, limitbw, rate_per_queue, numqueues);
+			
+			for (queue = 0; queue < APP_MAX_TX_QUEUES_PER_NIC_PORT; queue++) {
+				if (app.nic_tx_queue_mask[port][queue] == 0) {
+					continue;
+				}
+				
+				printf ("***** Setting rate limit %u/%u to: %u Mbps ****\n",
+				        port, queue, rate_per_queue);
 
-				rte_eth_set_queue_rate_limit (port, queue, limitbw / numqueues);
+				rte_eth_set_queue_rate_limit (port, queue, rate_per_queue);
 			}
 		}
 	}

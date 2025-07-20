@@ -1,0 +1,99 @@
+BasedOnStyle: Google
+Language: Cpp
+IndentWidth: 4
+ColumnLimit: 120
+UseTab: Always
+TabWidth: 4
+AccessModifierOffset: -4
+
+IncludeBlocks:   Regroup
+IncludeCategories:
+  - Regex:           '<(sys\/|arpa\/|netinet\/)?[_a-z0-9]+\.h>'
+    Priority:        1
+    CaseSensitive:   true
+  - Regex:           '<[_\/a-z]+>'
+    Priority:        2
+    CaseSensitive:   true
+  - Regex:           '<ext\/[_a-z]+\.h>'
+    Priority:        3
+    CaseSensitive:   true
+  - Regex:           '<[-_a-zA-Z0-9]+\/[-_a-zA-Z0-9\/]+\.(h|hpp|hh)>'
+    Priority:        4
+    CaseSensitive:   false
+  - Regex:           '"[-a-zA-Z\/]+\.h"'
+    Priority:        5
+    CaseSensitive:   false
+  - Regex:           '"[-a-zA-Z\/]+\.pb\.h"'
+    Priority:        6
+    CaseSensitive:   false
+SortIncludes:    CaseSensitive
+
+# Alignment
+AlignAfterOpenBracket: DontAlign
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignOperands: DontAlign
+PointerAlignment: Left
+
+# Spacing style
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SpacesBeforeTrailingComments: 8
+
+# Class style
+BreakConstructorInitializers: BeforeComma
+ConstructorInitializerIndentWidth: 0
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+# PackConstructorInitializers: Never   # Enable after using clang-format version 14.
+
+# Function style
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllArgumentsOnNextLine: false
+AllowShortFunctionsOnASingleLine: None
+IndentWrappedFunctionNames: true
+
+# Template style
+AlwaysBreakTemplateDeclarations: Yes
+
+# If style
+AllowShortIfStatementsOnASingleLine: Never
+
+# Loop style
+AllowShortLoopsOnASingleLine: false
+
+# Preprocessor style
+IndentPPDirectives: None
+
+# Block style
+AllowShortBlocksOnASingleLine: Never
+KeepEmptyLinesAtTheStartOfBlocks: true
+
+# Break style
+BreakBeforeBinaryOperators: None
+BreakBeforeBraces: Allman
+BreakBeforeTernaryOperators: false
+BreakStringLiterals: true
+CompactNamespaces: false
+ContinuationIndentWidth: 8
+MaxEmptyLinesToKeep: 1
+AlwaysBreakBeforeMultilineStrings: false
+
+# Switch case
+IndentCaseBlocks: false
+IndentCaseLabels: true
+
+# Lambda
+AllowShortLambdasOnASingleLine: All
+
+# Other styles
+FixNamespaceComments: false
+
+# Known bug: Aligns inheritance

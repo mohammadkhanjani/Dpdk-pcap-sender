@@ -78,6 +78,8 @@
 #include "main.h"
 
 uint16_t limitbw = 0;
+char pcap_File[256] = "";
+uint8_t caidaTrace = 0;
 
 static struct rte_eth_conf port_conf = {
     .rxmode =
@@ -165,8 +167,6 @@ static void app_init_mbuf_pools (void) {
 		app.lcore_params[lcore].pool = app.pools[socket];
 	}
 }
-
-char pcap_File[256] = {0};
 
 static void app_init_rings_tx (void) {
 	unsigned lcore;
@@ -393,7 +393,67 @@ void app_init (void) {
 	hptl_config conf = {.precision = 9, .clockspeed = 0};
 	hptl_init (&conf);
 
+	// Initialize rate limiting
+	app_init_rate_limiting();
+
 	printf ("Using HPTL %s.\n", hptl_VERSION);
 
 	printf ("Initialization completed.\n");
+}
+
+/* Rate limiting implementation */
+void app_init_rate_limiting(void) {
+	uint64_t hz = rte_get_tsc_hz();
+	
+	// Initialize rate limiting parameters
+	if (limitbw > 0) {
+		// Convert Mbps to bits per second
+		app.rate_limit_bps = (uint64_t)limitbw * 1000000ULL;
+		
+		// Calculate rate limiting period (1 second in CPU cycles)
+		app.rate_period_cycles = hz;
+		
+		// Initialize timing variables
+		app.last_tx_time = 0;
+		app.bytes_sent_in_period = 0;
+		app.period_start_cycles = rte_get_tsc_cycles();
+		
+		printf("Rate limiting enabled: %u Mbps (%lu bits/sec)\n", 
+		       limitbw, app.rate_limit_bps);
+	} else {
+		app.rate_limit_bps = 0;
+		printf("Rate limiting disabled (unlimited transmission)\n");
+	}
+}
+
+int app_check_rate_limit(uint32_t bytes_to_send) {
+	if (app.rate_limit_bps == 0) {
+		return 1; // No rate limiting, allow transmission
+	}
+	
+	uint64_t current_cycles = rte_get_tsc_cycles();
+	uint64_t bits_to_send = bytes_to_send * 8;
+	
+	// Check if we need to reset the period
+	if (current_cycles - app.period_start_cycles >= app.rate_period_cycles) {
+		app.period_start_cycles = current_cycles;
+		app.bytes_sent_in_period = 0;
+	}
+	
+	// Calculate bits sent in current period
+	uint64_t bits_sent_in_period = app.bytes_sent_in_period * 8;
+	
+	// Check if adding this transmission would exceed the rate limit
+	if (bits_sent_in_period + bits_to_send > app.rate_limit_bps) {
+		return 0; // Rate limit exceeded, deny transmission
+	}
+	
+	return 1; // Allow transmission
+}
+
+void app_update_rate_stats(uint32_t bytes_sent) {
+	if (app.rate_limit_bps > 0) {
+		app.bytes_sent_in_period += bytes_sent;
+		app.last_tx_time = rte_get_tsc_cycles();
+	}
 }

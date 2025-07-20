@@ -283,6 +283,15 @@ struct app_params {
 	/* burst size */
 	uint32_t burst_size_io_rx_read;
 	uint32_t burst_size_io_tx_write;
+
+	/* Rate limiting */
+	uint64_t rate_limit_bps;        /* Rate limit in bits per second */
+	uint64_t rate_limit_pps;        /* Rate limit in packets per second (if specified) */
+	uint64_t last_tx_time;          /* Last transmission time in cycles */
+	uint64_t tx_interval_cycles;    /* Minimum cycles between transmissions */
+	uint64_t bytes_sent_in_period;  /* Bytes sent in current period */
+	uint64_t period_start_cycles;   /* Start of current rate limiting period */
+	uint64_t rate_period_cycles;    /* Rate limiting period in cycles (e.g., 1 second) */
 } __rte_cache_aligned;
 
 
@@ -292,6 +301,15 @@ int app_parse_args(int argc, char **argv);
 void app_print_usage(void);
 void app_init(void);
 int app_lcore_main_loop(void *arg);
+
+/* Rate limiting functions */
+void app_init_rate_limiting(void);
+int app_check_rate_limit(uint32_t bytes_to_send);
+void app_update_rate_stats(uint32_t bytes_sent);
+
+/* Packet filling function */
+void app_fill_packets_frompcap(struct app_lcore_params_io *lp, uint8_t port, uint8_t queue, 
+                               struct rte_mbuf **mbufs, uint32_t n_mbufs);
 
 int app_get_nic_rx_queues_per_port (uint8_t port);
 int app_get_nic_tx_queues_per_port (uint8_t port);

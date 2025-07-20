@@ -130,6 +130,48 @@ uint8_t caidaTrace    = 0;
 char ethernetHeader[] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x58, 0xBB, 0xCC, 0xDD, 0xEE, 0x58, 0x08, 0x00};
 
+/* External variables for PCAP file handling */
+extern char pcap_File[256];
+extern uint16_t limitbw;
+
+/* PCAP packet filling function */
+void app_fill_packets_frompcap(struct app_lcore_params_io *lp, uint8_t port, uint8_t queue, 
+                               struct rte_mbuf **mbufs, uint32_t n_mbufs) {
+    uint32_t i;
+    static uint32_t packet_size = 64; // Default packet size
+    static int initialized = 0;
+    
+    // Simple packet filling - in a real implementation, you would read from PCAP file
+    // For now, we'll create simple test packets
+    for (i = 0; i < n_mbufs; i++) {
+        struct rte_mbuf *mbuf = mbufs[i];
+        
+        // Set packet data length (minimum Ethernet frame size is 64 bytes)
+        mbuf->data_len = packet_size;
+        mbuf->pkt_len = packet_size;
+        
+        // Fill packet data with a simple pattern
+        uint8_t *pkt_data = rte_pktmbuf_mtod(mbuf, uint8_t *);
+        
+        // Copy Ethernet header
+        rte_memcpy(pkt_data, ethernetHeader, sizeof(ethernetHeader));
+        
+        // Fill the rest with a pattern
+        for (uint32_t j = sizeof(ethernetHeader); j < packet_size; j++) {
+            pkt_data[j] = (uint8_t)(j & 0xFF);
+        }
+    }
+    
+    if (!initialized) {
+        printf("Filling packets with test data (size: %u bytes per packet)\n", packet_size);
+        if (strlen(pcap_File) > 0) {
+            printf("Note: PCAP file reading not fully implemented, using test patterns\n");
+            printf("PCAP file specified: %s\n", pcap_File);
+        }
+        initialized = 1;
+    }
+}
+
 //#define QUEUE_STATS
 
 // Prefetching mmap and atomics
@@ -259,6 +301,7 @@ static inline void app_lcore_io_tx (struct app_lcore_params_io *lp,
 			uint8_t queue = lp->tx.nic_queues[i].queue;
 			// struct rte_ring *ring = lp->tx.rings[port][worker];
 			uint32_t n_pkts = 0;
+			uint32_t bytes_to_send = 0;
 			// int ret;
 
 			// n_mbufs = lp->tx.mbuf_out[port].n_mbufs;
@@ -278,6 +321,20 @@ static inline void app_lcore_io_tx (struct app_lcore_params_io *lp,
 
 			app_fill_packets_frompcap (lp, port, queue, lp->tx.mbuf_out[port].array, bsz_wr);
 
+			// Calculate total bytes to be sent for rate limiting
+			for (uint32_t j = 0; j < bsz_wr; j++) {
+				bytes_to_send += lp->tx.mbuf_out[port].array[j]->pkt_len;
+			}
+
+			// Check rate limit before transmission
+			if (!app_check_rate_limit(bytes_to_send)) {
+				// Rate limit exceeded, free the allocated mbufs and skip transmission
+				for (uint32_t j = 0; j < bsz_wr; j++) {
+					rte_pktmbuf_free(lp->tx.mbuf_out[port].array[j]);
+				}
+				continue;
+			}
+
 			/*if (unlikely(n_mbufs < bsz_wr)) {
 			    lp->tx.mbuf_out[port].n_mbufs = n_mbufs;
 			    continue;
@@ -289,6 +346,13 @@ static inline void app_lcore_io_tx (struct app_lcore_params_io *lp,
 				n_pkts += rte_eth_tx_burst (
 				    port, queue, lp->tx.mbuf_out[port].array + n_pkts, bsz_wr - n_pkts);
 			}
+
+			// Update rate limiting statistics
+			uint32_t actual_bytes_sent = 0;
+			for (uint32_t j = 0; j < n_pkts; j++) {
+				actual_bytes_sent += lp->tx.mbuf_out[port].array[j]->pkt_len;
+			}
+			app_update_rate_stats(actual_bytes_sent);
 
 #if APP_STATS
 			lp->tx.nic_queues_iters[i]++;

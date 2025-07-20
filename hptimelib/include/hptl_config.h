@@ -6,7 +6,7 @@
 #define HBC_str(a) #a
 
 //The current version
-#define hptl_VERSION_trash 72e8675
+#define hptl_VERSION_trash c0e394e
 
 #define hptl_VERSION HBC_xstr(hptl_VERSION_trash)
 

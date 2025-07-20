@@ -74,6 +74,11 @@
 
 #include "main.h"
 
+// Rate limiting variables
+static __thread uint64_t last_packet_time = 0;
+static __thread uint64_t packets_sent_this_second = 0;
+static __thread uint64_t second_start_time = 0;
+
 #ifndef APP_LCORE_IO_FLUSH
 #define APP_LCORE_IO_FLUSH 1000000
 #endif
@@ -161,6 +166,39 @@ static inline void app_lcore_io_rx (struct app_lcore_params_io *lp, uint32_t bsz
 
 #define DONOTRESEND
 static __thread uint8_t numtxqueues = 0;
+
+// Function to implement precise rate limiting
+static inline void precise_rate_limit_control(void) {
+    if (precise_rate_limit == 0) {
+        return;  // No rate limiting
+    }
+    
+    uint64_t current_time = rte_get_tsc_cycles();
+    uint64_t tsc_hz = rte_get_tsc_hz();
+    
+    // Check if we need to start a new second
+    if (second_start_time == 0 || 
+        (current_time - second_start_time) >= tsc_hz) {
+        second_start_time = current_time;
+        packets_sent_this_second = 0;
+    }
+    
+    // Check if we've sent too many packets this second
+    if (packets_sent_this_second >= precise_rate_limit) {
+        // Calculate how long to wait until next second
+        uint64_t wait_cycles = tsc_hz - (current_time - second_start_time);
+        if (wait_cycles > 0) {
+            rte_delay_us(wait_cycles * 1000000 / tsc_hz);
+        }
+        // Reset for next second
+        second_start_time = rte_get_tsc_cycles();
+        packets_sent_this_second = 0;
+    }
+    
+    // Increment packet counter
+    packets_sent_this_second++;
+    last_packet_time = current_time;
+}
 
 static inline void app_fill_1packet_frompcap (struct app_lcore_params_io *const restrict lp,
                                               const uint8_t port_id,
@@ -283,11 +321,28 @@ static inline void app_lcore_io_tx (struct app_lcore_params_io *lp,
 			    continue;
 			}*/
 
-			n_pkts = rte_eth_tx_burst (port, queue, lp->tx.mbuf_out[port].array, bsz_wr);
+			// Apply precise rate limiting before sending
+			if (precise_rate_limit > 0) {
+				// For precise rate limiting, send packets one by one
+				uint32_t i;
+				for (i = 0; i < bsz_wr; i++) {
+					precise_rate_limit_control();
+					uint16_t sent = rte_eth_tx_burst(port, queue, &lp->tx.mbuf_out[port].array[i], 1);
+					if (sent == 0) {
+						// If we can't send, wait a bit and try again
+						rte_delay_us(100);
+						sent = rte_eth_tx_burst(port, queue, &lp->tx.mbuf_out[port].array[i], 1);
+					}
+				}
+				n_pkts = bsz_wr;
+			} else {
+				// Original behavior for no rate limiting
+				n_pkts = rte_eth_tx_burst (port, queue, lp->tx.mbuf_out[port].array, bsz_wr);
 
-			while (unlikely (n_pkts < bsz_wr)) {
-				n_pkts += rte_eth_tx_burst (
-				    port, queue, lp->tx.mbuf_out[port].array + n_pkts, bsz_wr - n_pkts);
+				while (unlikely (n_pkts < bsz_wr)) {
+					n_pkts += rte_eth_tx_burst (
+					    port, queue, lp->tx.mbuf_out[port].array + n_pkts, bsz_wr - n_pkts);
+				}
 			}
 
 #if APP_STATS

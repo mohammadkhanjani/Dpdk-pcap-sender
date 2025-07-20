@@ -78,6 +78,7 @@
 #include "main.h"
 
 uint16_t limitbw = 0;
+uint32_t precise_rate_limit = 0;  // 0 means no precise rate limiting
 
 static struct rte_eth_conf port_conf = {
     .rxmode =

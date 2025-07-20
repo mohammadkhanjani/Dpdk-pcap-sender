@@ -88,6 +88,7 @@ static const char usage[] =
     "    --pcap \"file.pcap\" : the pcap file to send                               \n"
     "    --caida : the pcap is a caida file and requires special treatment          \n"
     "    --bwl \"Mbps\" : limit the transfer to a fixed Mbps                        \n"
+    "    --rate \"packets_per_second\" : precise rate limiting in packets per second \n"
 
     "                                                                               \n"
     "Application optional parameters:                                               \n"
@@ -352,6 +353,7 @@ static int parse_arg_bsz (const char *arg) {
 extern char pcap_File[256];
 extern uint8_t  caidaTrace;
 extern uint16_t limitbw;
+extern uint32_t precise_rate_limit;  // Packets per second for precise rate limiting
 
 /* Parse the argument given in the command line of the application */
 int app_parse_args (int argc, char **argv) {
@@ -363,6 +365,7 @@ int app_parse_args (int argc, char **argv) {
 	                                 {"pcap" , 1, 0, 0},
 	                                 {"caida", 0, 0, 0},
 	                                 {"bwl"  , 1, 0, 0},
+	                                 {"rate" , 1, 0, 0},
 	                                 // normal
 	                                 {"rx", 1, 0, 0},
 	                                 {"tx", 1, 0, 0},
@@ -421,6 +424,9 @@ int app_parse_args (int argc, char **argv) {
 				}
 				if (!strcmp (lgopts[option_index].name, "bwl")) {
 					limitbw    = atoi(optarg);
+				}
+				if (!strcmp (lgopts[option_index].name, "rate")) {
+					precise_rate_limit = atoi(optarg);
 				}
 				break;
 

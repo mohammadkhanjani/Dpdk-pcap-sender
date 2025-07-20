@@ -38,6 +38,10 @@
 #include "include/hptl.h"
 #include "pcap_jose.h"
 
+// Global variables for rate limiting
+extern uint16_t limitbw;
+extern uint32_t precise_rate_limit;
+
 /* Logical cores */
 #ifndef APP_MAX_SOCKETS
 #define APP_MAX_SOCKETS 2
